@@ -12,7 +12,6 @@ HARDCODED_DESCRIPTION = "hardcoded_hello.txt"
 
 
 def read_header_line(sock: socket.socket) -> str:
-    """Read one protocol header line byte-by-byte until '\n'."""
     header = b""
     while not header.endswith(b"\n"):
         chunk = sock.recv(1)
@@ -23,7 +22,6 @@ def read_header_line(sock: socket.socket) -> str:
 
 
 def recv_exact(sock: socket.socket, length: int) -> bytes:
-    """Receive exactly `length` bytes or fail if connection closes."""
     data = bytearray()
     while len(data) < length:
         chunk = sock.recv(min(4096, length - len(data)))
@@ -50,21 +48,21 @@ def cmd_list() -> int:
         header = read_header_line(sock)
         parts = header.split()
         if len(parts) < 3 or parts[0] != "200" or parts[1] != "OK":
-            print(f"LIST failed: {header}")
+            print(f"Zlyhal príkaz LIST: {header}")
             return 1
 
         try:
             count = int(parts[2])
         except ValueError:
-            print(f"Invalid LIST count in response: {header}")
+            print(f"Neplatný počet v odpovedi LIST: {header}")
             return 1
 
-        print(f"LIST OK, {count} item(s):")
+        print(f"LIST OK, počet položiek: {count}")
         for _ in range(count):
             line = read_header_line(sock)
             item_parts = line.split(maxsplit=1)
             if not item_parts:
-                print("<invalid empty item line>")
+                print("<neplatný prázdny riadok položky>")
                 continue
             file_hash = item_parts[0]
             description = item_parts[1] if len(item_parts) > 1 else ""
@@ -80,19 +78,19 @@ def cmd_get(file_hash: str, output_name: str | None = None) -> int:
 
         header = read_header_line(sock)
         if not header.startswith("200 "):
-            print(f"GET failed: {header}")
+            print(f"Zlyhal príkaz GET: {header}")
             return 1
 
         # 200 OK <length> <description-with-possible-spaces>
         parts = header.split(maxsplit=3)
         if len(parts) < 4 or parts[1] != "OK":
-            print(f"Invalid GET header: {header}")
+            print(f"Neplatná hlavička GET: {header}")
             return 1
 
         try:
             length = int(parts[2])
         except ValueError:
-            print(f"Invalid GET length in header: {header}")
+            print(f"Neplatná dĺžka v hlavičke GET: {header}")
             return 1
 
         description = parts[3]
@@ -100,11 +98,13 @@ def cmd_get(file_hash: str, output_name: str | None = None) -> int:
 
         if output_name:
             out_path = Path(output_name)
+            if not out_path.name.startswith("down_"):
+                out_path = out_path.with_name(f"down_{out_path.name}")
         else:
             out_path = script_dir() / f"down_{sanitize_filename(description)}"
 
         out_path.write_bytes(data)
-        print(f"Downloaded {length} byte(s) to: {out_path}")
+        print(f"Stiahnutých {length} bajtov do: {out_path}")
     return 0
 
 
@@ -120,20 +120,20 @@ def upload_bytes(data: bytes, description: str) -> int:
         response = read_header_line(sock)
         parts = response.split()
         if len(parts) >= 3 and parts[0] == "200" and parts[1] == "STORED":
-            print(f"Upload successful, hash: {parts[2]}")
+            print(f"Upload bol úspešný, hash: {parts[2]}")
             return 0
         if len(parts) >= 3 and parts[0] == "409" and parts[1] == "HASH_EXISTS":
-            print(f"Upload skipped, hash already exists: {parts[2]}")
+            print(f"Upload preskočený, hash už existuje: {parts[2]}")
             return 0
 
-        print(f"UPLOAD failed: {response}")
+        print(f"Zlyhal príkaz UPLOAD: {response}")
         return 1
 
 
 def cmd_upload_file(file_path: str, description: str) -> int:
     path = Path(file_path)
     if not path.is_file():
-        print(f"File not found: {file_path}")
+        print(f"Súbor nebol nájdený: {file_path}")
         return 1
     data = path.read_bytes()
     return upload_bytes(data, description)
@@ -157,24 +157,24 @@ def cmd_delete(file_hash: str) -> int:
         code = response.split(maxsplit=1)[0] if response else ""
 
         if code == "200":
-            print("DELETE successful")
+            print("DELETE prebehol úspešne")
             return 0
         if code == "404":
-            print("DELETE failed: NOT_FOUND")
+            print("Zlyhal príkaz DELETE: NOT_FOUND (súbor sa nenašiel)")
             return 1
         if code == "400":
-            print("DELETE failed: BAD_REQUEST")
+            print("Zlyhal príkaz DELETE: BAD_REQUEST (neplatná požiadavka)")
             return 1
         if code == "500":
-            print("DELETE failed: SERVER_ERROR")
+            print("Zlyhal príkaz DELETE: SERVER_ERROR (chyba servera)")
             return 1
 
-        print(f"DELETE failed: {response}")
+        print(f"Zlyhal príkaz DELETE: {response}")
         return 1
 
 
 def print_usage() -> None:
-    print("Usage:")
+    print("Použitie:")
     print("  python client_hashstore.py list")
     print("  python client_hashstore.py get <hash> [output_file]")
     print("  python client_hashstore.py upload <file> <description>")
@@ -236,7 +236,7 @@ def main() -> int:
         return 1
 
     except Exception as exc:
-        print(f"Error: {exc}")
+        print(f"Chyba: {exc}")
         return 1
 
 
