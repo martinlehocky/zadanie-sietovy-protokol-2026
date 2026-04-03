@@ -1,3 +1,0 @@
-This is a sample file for HASHSTORE upload testing.
-You can upload it using:
-python client_hashstore.py upload sample.txt sample_upload.txt
