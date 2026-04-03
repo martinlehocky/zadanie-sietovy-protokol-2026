@@ -81,7 +81,6 @@ def cmd_get(file_hash: str, output_name: str | None = None) -> int:
             print(f"Zlyhal príkaz GET: {header}")
             return 1
 
-        # 200 OK <length> <description-with-possible-spaces>
         parts = header.split(maxsplit=3)
         if len(parts) < 4 or parts[1] != "OK":
             print(f"Neplatná hlavička GET: {header}")
@@ -113,7 +112,7 @@ def upload_bytes(data: bytes, description: str) -> int:
         sock.connect((HOST, PORT))
 
         header = f"UPLOAD {len(data)} {description}\n".encode("utf-8")
-        # Header and payload are sent on the same connection.
+
         sock.sendall(header)
         sock.sendall(data)
 
