@@ -2,6 +2,7 @@
 
 import socket
 import sys
+import shlex
 from pathlib import Path
 
 HOST = "127.0.0.1"
@@ -174,6 +175,7 @@ def cmd_delete(file_hash: str) -> int:
 
 def print_usage() -> None:
     print("Použitie:")
+    print("  python client_hashstore.py")
     print("  python client_hashstore.py list")
     print("  python client_hashstore.py get <hash> [output_file]")
     print("  python client_hashstore.py upload <file> <description>")
@@ -182,57 +184,114 @@ def print_usage() -> None:
     print("  python client_hashstore.py delete <hash>")
 
 
+def print_interactive_help() -> None:
+    print("Dostupné príkazy:")
+    print("  list")
+    print("  get <hash> [output_file]")
+    print("  upload <file> <description>")
+    print("  upload-hardcoded")
+    print("  delete <hash>")
+    print("  help")
+    print("  exit | quit")
+
+
+def run_command(args: list[str], interactive: bool = False) -> int:
+    show_help = print_interactive_help if interactive else print_usage
+
+    if not args:
+        show_help()
+        return 1
+
+    cmd = args[0]
+
+    if cmd == "list":
+        if len(args) != 1:
+            show_help()
+            return 1
+        return cmd_list()
+
+    if cmd == "get":
+        if len(args) not in (2, 3):
+            show_help()
+            return 1
+        file_hash = args[1]
+        output = args[2] if len(args) == 3 else None
+        return cmd_get(file_hash, output)
+
+    if cmd == "upload":
+        if len(args) < 3:
+            show_help()
+            return 1
+        file_path = args[1]
+        description = " ".join(args[2:])
+        return cmd_upload_file(file_path, description)
+
+    if cmd == "upload-hardcoded":
+        if len(args) != 1:
+            show_help()
+            return 1
+        return cmd_upload_hardcoded()
+
+    if cmd == "upload-stdin":
+        if interactive:
+            print("Príkaz upload-stdin nie je dostupný v interaktívnom režime.")
+            print("Použite jednorazový režim: python client_hashstore.py upload-stdin <description>")
+            return 1
+        if len(args) < 2:
+            show_help()
+            return 1
+        description = " ".join(args[1:])
+        return cmd_upload_stdin(description)
+
+    if cmd == "delete":
+        if len(args) != 2:
+            show_help()
+            return 1
+        return cmd_delete(args[1])
+
+    show_help()
+    return 1
+
+
+def interactive_loop() -> int:
+    print("Zadajte 'help' pre pomoc, 'exit' alebo 'quit' pre ukončenie.")
+    while True:
+        try:
+            raw = input("hashstore> ").strip()
+        except EOFError:
+            print()
+            return 0
+        except KeyboardInterrupt:
+            print()
+            continue
+
+        if not raw:
+            continue
+
+        if raw in ("exit", "quit"):
+            return 0
+
+        if raw == "help":
+            print_interactive_help()
+            continue
+
+        try:
+            args = shlex.split(raw)
+        except ValueError as exc:
+            print(f"Neplatný vstup: {exc}")
+            continue
+
+        try:
+            run_command(args, interactive=True)
+        except Exception as exc:
+            print(f"Chyba: {exc}")
+
+
 def main() -> int:
     try:
-        if len(sys.argv) < 2:
-            print_usage()
-            return 1
-
-        cmd = sys.argv[1]
-
-        if cmd == "list":
-            if len(sys.argv) != 2:
-                print_usage()
-                return 1
-            return cmd_list()
-
-        if cmd == "get":
-            if len(sys.argv) not in (3, 4):
-                print_usage()
-                return 1
-            file_hash = sys.argv[2]
-            output = sys.argv[3] if len(sys.argv) == 4 else None
-            return cmd_get(file_hash, output)
-
-        if cmd == "upload":
-            if len(sys.argv) < 4:
-                print_usage()
-                return 1
-            file_path = sys.argv[2]
-            description = " ".join(sys.argv[3:])
-            return cmd_upload_file(file_path, description)
-
-        if cmd == "upload-hardcoded":
-            if len(sys.argv) != 2:
-                print_usage()
-                return 1
-            return cmd_upload_hardcoded()
-
-        if cmd == "upload-stdin":
-            if len(sys.argv) < 3:
-                print_usage()
-                return 1
-            description = " ".join(sys.argv[2:])
-            return cmd_upload_stdin(description)
-
-        if cmd == "delete":
-            if len(sys.argv) != 3:
-                print_usage()
-                return 1
-            return cmd_delete(sys.argv[2])
-
-        print_usage()
-        return 1
+        if len(sys.argv) == 1:
+            return interactive_loop()
+        return run_command(sys.argv[1:], interactive=False)
 
     except Exception as exc:
         print(f"Chyba: {exc}")
